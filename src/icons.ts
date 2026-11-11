@@ -72,7 +72,7 @@ const SELFHST_SLUGS: Record<string, string> = {
 
 function appSlug(value: string): string {
   return value.toLowerCase()
-    .replace(/\\(\\d+\\).*$/, "")
+    .replace(/\(\d+\).*$/, "")
     .replace(/^(lxc|qemu|vm|node)[ _-]+/, "")
     .replace(/[ _-]+(status|locked|health)$/, "")
     .replace(/[^a-z0-9]/g, "");
@@ -80,7 +80,7 @@ function appSlug(value: string): string {
 
 export function serviceLogoUrl(key: string, friendlyName?: string | null): string | null {
   if (key.startsWith("node_")) return null;
-  const keyName = key.replace(/^(lxc|qemu)_/, "").replace(/_\\d+$/, "");
+  const keyName = key.replace(/^(lxc|qemu)_/, "").replace(/_\d+$/, "");
   const slug = (friendlyName && SELFHST_SLUGS[appSlug(friendlyName)])
     || SELFHST_SLUGS[appSlug(keyName)];
   return slug
