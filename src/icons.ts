@@ -45,3 +45,45 @@ export function systemIcon(key: string): string {
   if (key.startsWith('qemu_')) return 'mdi:chip';
   return 'mdi:server';
 }
+
+// Community Scripts uses the selfh.st icon library for application logos.
+// Only known slugs are requested; unknown software keeps its built-in MDI icon.
+// The real displayed Home Assistant name takes priority over an old entity_id.
+const SELFHST_SLUGS: Record<string, string> = {
+  adguard: "adguard-home", adguardhome: "adguard-home",
+  actual: "actual-budget", actualbudget: "actual-budget",
+  authentik: "authentik", changedetection: "changedetection-io",
+  cloudflared: "cloudflare", cloudflare: "cloudflare",
+  debian: "debian", docker: "docker", duplicati: "duplicati",
+  emby: "emby", esphome: "esphome", frigate: "frigate",
+  grafana: "grafana", glances: "glances", haiptv: "home-assistant",
+  homeassistant: "home-assistant", homeassistantos: "home-assistant",
+  haos: "home-assistant", homepage: "homepage", immich: "immich",
+  jellyfin: "jellyfin", mariadb: "mariadb",
+  musicassistant: "music-assistant", navidrome: "navidrome",
+  nodered: "node-red", nginxproxymanager: "nginx-proxy-manager",
+  paperless: "paperless-ngx", plex: "plex", portainer: "portainer",
+  proxmox: "proxmox", pve: "proxmox", qbittorrent: "qbittorrent",
+  radarr: "radarr", samba: "samba", sonarr: "sonarr",
+  tailscale: "tailscale", truenas: "truenas",
+  uptimekuma: "uptime-kuma", vaultwarden: "vaultwarden",
+  wireguard: "wireguard", zigbee2mqtt: "zigbee2mqtt",
+};
+
+function appSlug(value: string): string {
+  return value.toLowerCase()
+    .replace(/\\(\\d+\\).*$/, "")
+    .replace(/^(lxc|qemu|vm|node)[ _-]+/, "")
+    .replace(/[ _-]+(status|locked|health)$/, "")
+    .replace(/[^a-z0-9]/g, "");
+}
+
+export function serviceLogoUrl(key: string, friendlyName?: string | null): string | null {
+  if (key.startsWith("node_")) return null;
+  const keyName = key.replace(/^(lxc|qemu)_/, "").replace(/_\\d+$/, "");
+  const slug = (friendlyName && SELFHST_SLUGS[appSlug(friendlyName)])
+    || SELFHST_SLUGS[appSlug(keyName)];
+  return slug
+    ? `https://cdn.jsdelivr.net/gh/selfhst/icons@main/webp/${slug}.webp`
+    : null;
+}
