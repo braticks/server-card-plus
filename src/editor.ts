@@ -152,6 +152,7 @@ export class ServerCardPlusEditor extends LitElement implements LovelaceCardEdit
         "classic",
       )}
       ${this._cfg({ boolean: {} }, this._t("e_hdd"), "show_hdd_temp", false)}
+      ${this._cfg({ boolean: {} }, "Application logos (selfh.st / Community Scripts)", "show_service_icons", true)}
       ${this._cfg({ boolean: {} }, this._t("e_controls"), "show_controls", false)}
       ${noButtons ? html`<div class="hint">${this._t("e_no_buttons")}</div>` : ""}
 
@@ -176,6 +177,15 @@ export class ServerCardPlusEditor extends LitElement implements LovelaceCardEdit
           `
         : ""}
 
+      ${!dashboard && this._config.design === "rack" ? html`
+        <ha-expansion-panel outlined .header=${"Rack: host hardware"}>
+          <div class="panel">
+            ${this._cfg({ entity: { domain: "sensor" } }, "CPU temperature sensor", "cpu_temp_entity")}
+            ${this._cfg({ entity: { domain: "sensor" } }, "GPU usage sensor", "gpu_entity")}
+            <div class="hint">Individual SSD/HDD usage, temperature and SMART sensors can be added under disk_details in YAML.</div>
+          </div>
+        </ha-expansion-panel>
+      ` : ""}
       <ha-expansion-panel outlined .header=${this._t("e_style")}>
         <div class="panel">
           ${STYLE_FIELDS.map(([field, selector, label]) =>
