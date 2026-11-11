@@ -62,45 +62,39 @@ This fork keeps the upstream Rack / Classic / Circles designs and adds:
 
 **The logos are fetched from a public CDN.** Set `show_service_icons: false` to use only MDI icons. No runtime access to community-scripts.org or Proxmox credentials is required.
 
-### Example: namai74 with Glances + Proxmox SMART
+### Example: generic Proxmox host (replace placeholder entity IDs)
+
+The configuration below is **illustrative**; substitute entity IDs from your own Home Assistant installation. Do not copy internal hostnames, addresses or private sensors into a public issue or repository.
 
 ```yaml
 type: custom:server-card-plus
 mode: single
-node: node_namai74
-title: namai74
+node: node_yourhost
+title: Proxmox Host
 design: rack
 show_controls: false
 show_service_icons: true
 show_hdd_temp: false
-cpu_temp_entity: sensor.192_168_2_181_package_id_0_temperatura
-gpu_entity: sensor.192_168_2_181_uhd_graphics_630_gpu_intel0_procesoriaus_naudojimas
+cpu_temp_entity: sensor.example_cpu_temperature
+gpu_entity: sensor.example_gpu_usage
 disk_details:
   - name: SSD
-    usage_entity: sensor.192_168_2_181_disko_naudojimas_2
-    temperature_entity: sensor.kingston_skc3000s512g_nvme0_temperature
-    health_entity: binary_sensor.disk_namai74_kingston_skc3000s512g_health
+    usage_entity: sensor.example_ssd_used_percent
+    temperature_entity: sensor.example_ssd_temperature
+    health_entity: binary_sensor.example_ssd_health
     temp_warning: 40
     temp_critical: 60
   - name: HDD1
-    usage_entity: sensor.192_168_2_181_mnt_media1_disko_naudojimas
-    temperature_entity: sensor.wdc_wd10ezex_08wn4a0_sdc_temperature
-    health_entity: binary_sensor.disk_namai74_wdc_wd10ezex_08wn4a0_health
-  - name: HDD2
-    usage_entity: sensor.192_168_2_181_mnt_media2_disko_naudojimas
-    temperature_entity: sensor.st2000dm008_2fr102_sdb_temperature
-    health_entity: binary_sensor.disk_namai74_st2000dm008_2fr102_health
-  - name: HDD3
-    usage_entity: sensor.192_168_2_181_mnt_media3_disko_naudojimas
-    temperature_entity: sensor.toshiba_dt01aca100_sda_temperature
-    health_entity: binary_sensor.disk_namai74_toshiba_dt01aca100_health
+    usage_entity: sensor.example_hdd1_used_percent
+    temperature_entity: sensor.example_hdd1_temperature
+    health_entity: binary_sensor.example_hdd1_health
+    temp_warning: 35
+    temp_critical: 50
 ```
 
-In this Proxmox VE integration, `health_entity: off` means SMART OK and `on` means a warning. If a sensor is unavailable the row shows `–`, **not** `0`.
+Disk details support as many drives as needed. The health indicator currently treats `off` as OK and `on` as warning; check whether your integration uses the same convention. Missing sensors display `–`, not `0`. CPU/RAM/Disk percentage bars are detected from Proxmox sensors, or can be provided through HA Template Helpers.
 
-CPU/RAM/Disk gauges still use the Proxmox node sensors; in installations where Proxmox does not expose percentages, Template Helpers such as `sensor.node_namai74_cpu_usage`, `sensor.node_namai74_memory_use_percent`, and `sensor.node_namai74_disk_usage_percent` can supply them.
-
-### Showing your LXC/VM application logos
+### Showing LXC/VM application logos
 
 ```yaml
 type: custom:server-card-plus
@@ -109,7 +103,7 @@ design: rack
 show_service_icons: true
 show_controls: false
 hidden_systems:
-  - node_namai74
+  - node_yourhost
 ```
 
 Known services (AdGuard Home, Frigate, Plex, Emby, Music Assistant, Node-RED, qBittorrent, etc.) receive images; an unsupported or missing image falls back to MDI. Icons are matched by the Proxmox integration's displayed friendly name when possible, so a renamed guest can still match.
