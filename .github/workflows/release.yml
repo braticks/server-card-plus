@@ -1,0 +1,42 @@
+name: Build and publish fork
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Type-check and build
+        run: npm run build
+      - name: Check HACS bundle exists
+        run: test -s dist/server-card-plus.js
+      - name: Upload testable bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-card-plus
+          path: dist/server-card-plus.js
+      - name: Publish release for HACS
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: v0.3.1
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/server-card-plus.js --clobber
+          else
+            gh release create "$TAG" dist/server-card-plus.js --title "$TAG (braticks fork)" --notes "Rack: per-disk usage, temperatures and SMART status; GPU and CPU temperature; Community Scripts-style application logos." --target "$GITHUB_SHA"
+          fi
