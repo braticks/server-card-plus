@@ -13,7 +13,7 @@ import {
 import { HomeAssistant } from './ha/types';
 import { fireEvent } from './ha/fire_event';
 import { CardConfig, Color, SystemOverride } from './config';
-import { systemIcon } from './icons';
+import { systemIcon, serviceLogoUrl } from './icons';
 import { t } from './i18n';
 
 // shortcut: fixed HDD temperature scale (°C), make configurable if needed
@@ -96,6 +96,12 @@ export class ServerCardPlus extends LitElement {
     if (this._ids.length !== Object.keys(this.hass.states).length) return true;
     if (old.locale?.language !== this.hass.locale?.language) return true;
     // HA replaces a state object on change, so identity comparison is enough.
+    const extraIds = [
+      this.config?.cpu_temp_entity, this.config?.gpu_entity,
+      ...(this.config?.disk_details || []).flatMap((d) =>
+        [d.usage_entity, d.temperature_entity, d.health_entity]),
+    ].filter((id): id is string => !!id);
+    if (extraIds.some((id) => old.states[id] !== this.hass!.states[id])) return true;
     return this._visibleKeys().some((key) => {
       const m = this._mappingFor(key);
       return !m || mappingIds(m).some((id) => old.states[id] !== this.hass!.states[id]);
@@ -163,6 +169,87 @@ export class ServerCardPlus extends LitElement {
   private _pct(id: string | null): number | null {
     const v = parseFloat(this._val(id) ?? '');
     return isFinite(v) ? Math.max(0, Math.min(100, v)) : null;
+  }
+
+
+  /** A missing or unavailable sensor must never be displayed as 0. */
+  private _number(id?: string | null): number | null {
+    if (!id) return null;
+    const raw = this._val(id);
+    if (raw === null || raw.trim() === '') return null;
+    const value = Number(raw);
+    return Number.isFinite(value) ? value : null;
+  }
+
+  private _appName(key: string): string | null {
+    const status = this._state('binary_sensor.' + key + '_status');
+    const name = status?.attributes?.friendly_name;
+    return typeof name === 'string' ? name : null;
+  }
+
+  /** Real program logos, with a local MDI fallback for failed image requests. */
+  private _appIcon(key: string, fallback: string, iconClass = '', override?: string) {
+    const url = this.config?.show_service_icons === false || override || this.config?.icon
+      ? null : serviceLogoUrl(key, this._appName(key));
+    const mdiFallback = url && fallback.startsWith('simple-icons:')
+      ? (key.startsWith('lxc_') ? 'mdi:docker' : 'mdi:chip') : fallback;
+    return html`<span class="app-icon ${iconClass}">
+      <ha-icon icon=${mdiFallback}></ha-icon>
+      ${url ? html`<img src=${url} alt="" loading="lazy"
+        @error=${(event: Event) => { (event.currentTarget as HTMLImageElement).style.display = 'none'; }}
+        @load=${(event: Event) => { (event.currentTarget as HTMLImageElement).style.display = ''; }} />` : nothing}
+    </span>`;
+  }
+
+  /** Extra compact host-only Rack rows from optional external sensors (Glances / SMART). */
+  private _rackHostDetails(m: Mapping) {
+    const cfg = this.config;
+    if (m.kind !== 'node' || !cfg) return nothing;
+    const gpu = this._number(cfg.gpu_entity);
+    const cpuTemp = this._number(cfg.cpu_temp_entity);
+    const disks = cfg.disk_details || [];
+    if (!cfg.gpu_entity && !cfg.cpu_temp_entity && !disks.length) return nothing;
+    const { warn, crit } = this._palette();
+    const meter = (pct: number | null, label: string) => html`
+      <div class="r-row">
+        <span class="r-lbl">${label}</span>
+        <div class="seg">${Array.from({ length: 20 }, (_, i) => {
+          const zone = i * 5 >= crit ? 'c' : i * 5 >= warn ? 'w' : '';
+          const lit = pct !== null && pct >= i * 5 + 2.5;
+          return html`<i class="${zone} ${lit ? 'lit' : ''}"></i>`;
+        })}</div>
+        <span class="r-num">${pct === null ? '–' : html`${pct.toFixed(0)}<small>%</small>`}</span>
+      </div>`;
+
+    return html`
+      <div class="host-extra">
+        ${cfg.gpu_entity ? meter(gpu, 'GPU') : nothing}
+        ${cfg.cpu_temp_entity ? html`<div class="host-temp">
+          <span>CPU temp.</span><strong class=${cpuTemp !== null && cpuTemp >= 60 ? 'hot' : ''}>
+          ${cpuTemp === null ? '–' : cpuTemp.toFixed(0) + ' °C'}</strong>
+        </div>` : nothing}
+        ${disks.length ? html`<div class="host-disks">
+          <div class="host-disks-title">DISKAI</div>
+          ${disks.map((disk) => {
+            const pct = this._number(disk.usage_entity);
+            const temp = this._number(disk.temperature_entity);
+            const health = disk.health_entity ? this._val(disk.health_entity) : null;
+            const tw = disk.temp_warning ?? (/ssd|nvme/i.test(disk.name) ? 40 : 35);
+            const tc = disk.temp_critical ?? (/ssd|nvme/i.test(disk.name) ? 60 : 50);
+            const temperatureColor = temp === null ? 'var(--secondary-text-color)' :
+              temp >= tc ? 'var(--red, #e74c3c)' : temp >= tw ? 'var(--yellow, #f1c40f)' :
+              'var(--secondary-text-color)';
+            return html`<div class="host-disk">
+              <span class="disk-name">${disk.name}</span>
+              <div class="disk-bar"><div class="disk-fill" style="width:${pct === null ? 0 : Math.max(0,Math.min(100,pct))}%;background:${pct !== null && pct >= 80 ? 'var(--red,#e74c3c)' : pct !== null && pct >= 50 ? 'var(--yellow,#f1c40f)' : 'var(--accent)'}"></div></div>
+              <span class="disk-value">${pct === null ? '–' : pct.toFixed(0) + '%'}</span>
+              <span class="disk-temp" style="color:${temperatureColor}">${temp === null ? '–' : temp.toFixed(0) + '°'}</span>
+              ${disk.health_entity ? html`<span title=${health === 'off' ? 'SMART OK' : health === 'on' ? 'SMART warning' : 'SMART unavailable'} class="disk-health ${health === 'off' ? 'ok' : health === 'on' ? 'bad' : ''}"></span>` : nothing}
+            </div>`;
+          })}
+        </div>` : nothing}
+      </div>
+    `;
   }
 
   private _hddTempLine(m: Mapping) {
@@ -273,7 +360,7 @@ export class ServerCardPlus extends LitElement {
             aria-label=${statusText}
             title=${statusText}
           ></span>
-          <ha-icon icon=${icon} class="r-icon"></ha-icon>
+          ${this._appIcon(key, icon, 'r-icon', this._overrideFor(key)?.icon)}
           <span class="r-title">${title}</span>
           <span class="r-kind">${t(this.hass, `short_${m.kind}`)}</span>
         </div>
@@ -300,10 +387,12 @@ export class ServerCardPlus extends LitElement {
             </div>
           `,
         )}
+        ${this._rackHostDetails(m)}
         ${m.disk.total
           ? html`<div class="row subtotal">${t(this.hass, 'total', { v: this._val(m.disk.total) ?? '' })}</div>`
           : nothing}
-        ${this._hddTempLine(m)} ${this._summaryLine(m)} ${this._controls(m, statusState)}
+        ${this.config?.disk_details?.length ? nothing : this._hddTempLine(m)}
+        ${this._summaryLine(m)} ${this._controls(m, statusState)}
       </ha-card>
     `;
   }
@@ -337,7 +426,7 @@ export class ServerCardPlus extends LitElement {
 
     const head = (kind: string, statusState?: string | null, statusText?: string) => html`
       <div class="c-head">
-        <span class="c-tile"><ha-icon icon=${icon}></ha-icon></span>
+        <span class="c-tile">${this._appIcon(key, icon, '', ov?.icon)}</span>
         <div class="c-titles">
           <span class="c-title">${title}</span>
           <span class="c-kind">${kind}</span>
@@ -617,6 +706,60 @@ export class ServerCardPlus extends LitElement {
         border-color: var(--red, #e74c3c);
         color: #fff;
       }
+
+
+      /* App branding overlays a real MDI icon so broken URLs cannot hide a system. */
+      .app-icon {
+        display: inline-flex;
+        width: 22px;
+        height: 22px;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        position: relative;
+        color: var(--accent);
+      }
+      .app-icon ha-icon { --mdc-icon-size: 22px; }
+      .app-icon img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        border: 0;
+      }
+      .host-extra {
+        border-top: 1px solid var(--divider-color, #333);
+        padding-top: 5px;
+        margin-top: 8px;
+      }
+      .host-temp {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 4px 0;
+        font-size: .8rem;
+        color: var(--secondary-text-color);
+      }
+      .host-temp strong { color: var(--primary-text-color); }
+      .host-temp strong.hot { color: var(--red, #e74c3c); }
+      .host-disks { border-top: 1px solid var(--divider-color, #333); margin-top: 5px; padding-top: 8px; }
+      .host-disks-title { font-size: .7rem; color: var(--secondary-text-color); letter-spacing: .06em; margin-bottom: 6px; }
+      .host-disk {
+        display: grid;
+        grid-template-columns: 2.6rem minmax(25px, 1fr) 2.5rem 2rem 7px;
+        align-items: center;
+        column-gap: 7px;
+        margin: 6px 0;
+        font-size: .73rem;
+      }
+      .host-disk .disk-name { color: var(--secondary-text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .disk-bar { height: 5px; border-radius: 3px; background: var(--divider-color, #3a3a3a); overflow: hidden; }
+      .disk-fill { height: 100%; border-radius: 3px; }
+      .disk-value, .disk-temp { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+      .disk-health { width: 7px; height: 7px; border-radius: 50%; background: var(--secondary-text-color); }
+      .disk-health.ok { background: var(--green, #2ecc71); }
+      .disk-health.bad { background: var(--red, #e74c3c); }
 
       /* Design "Rack": Frontblende mit segmentierten LED-Metern */
       ha-card.rack {
