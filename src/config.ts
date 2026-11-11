@@ -15,6 +15,15 @@ export interface SystemOverride {
   accent?: Color; // Akzentfarbe (Icon + Labels)
 }
 
+export interface DiskDetailConfig {
+  name: string;
+  usage_entity?: string;
+  temperature_entity?: string;
+  health_entity?: string;
+  temp_warning?: number;
+  temp_critical?: number;
+}
+
 export interface CardConfig extends LovelaceCardConfig, Omit<SystemOverride, 'title'> {
   title?: string;
   node?: string; // System-Key oder "auto"
@@ -23,5 +32,11 @@ export interface CardConfig extends LovelaceCardConfig, Omit<SystemOverride, 'ti
   hidden_systems?: string[]; // im Dashboard-Mode ausgeblendete System-Keys
   overrides?: Record<string, SystemOverride>; // pro System-Key eigene Werte (Dashboard-Mode)
   show_hdd_temp?: boolean;
+  // Extended compact Rack host metrics from any Home Assistant integration.
+  cpu_temp_entity?: string;
+  gpu_entity?: string;
+  disk_details?: DiskDetailConfig[];
+  // Brand images use the same selfh.st icons selected by Community Scripts.
+  show_service_icons?: boolean;
   show_controls?: boolean; // Start / Neustart / Beenden / Stopp über die Proxmox-Buttons
 }
