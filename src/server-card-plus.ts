@@ -187,6 +187,18 @@ export class ServerCardPlus extends LitElement {
     return typeof name === 'string' ? name : null;
   }
 
+  private _systemLabel(key: string): string {
+    if (key.startsWith('node_')) return displayName(key);
+    const name = this._appName(key);
+    if (!name) return displayName(key);
+    const cleaned = name
+      .replace(/^(LXC|QEMU|VM)\s+/i, '')
+      .replace(/\s*\(\d+\).*$/, '')
+      .replace(/\s+(Status|Locked|Health)$/i, '')
+      .trim();
+    return cleaned || displayName(key);
+  }
+
   /** Real program logos, with a local MDI fallback for failed image requests. */
   private _appIcon(key: string, fallback: string, iconClass = '', override?: string) {
     const url = this.config?.show_service_icons === false || override || this.config?.icon
@@ -417,7 +429,7 @@ export class ServerCardPlus extends LitElement {
       ? ov.title
       : !isMulti && this.config && this.config.title
       ? this.config.title
-      : displayName(key);
+      : this._systemLabel(key);
     const { ok, warnColor, critColor } = this._palette(ov);
     const colors = { ok, warn: warnColor, crit: critColor };
     const icon = this._icon(key, ov);
